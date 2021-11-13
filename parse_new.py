@@ -125,7 +125,7 @@ def Lv1TXTParse(full_path, mapped_channels, factory, db, filename):
                 # 不存在则插入
                 sql = "INSERT INTO t_lv1_data(id, lv1_file_id, datetime, temperature, humidity, pressure, tir," \
                       " is_rain, qcisDelete, az, ei, qcisDelete_bt, brightness_emperature_43channels, isDelete) " \
-                      "VALUES (%s, '%s', '%s', %s, %s, %s, %s, %s, %s, %s, %s, %s, '%s', %s)" \
+                      "VALUES (%s, '%s', '%s', %s, %s, %s, %s, %s, %s, %s, %s, '%s', '%s', %s)" \
                       % (data_info["id"], data_info["lv1_file_id"], data_info["datetime"],
                          data_info["temperature"], data_info["humidity"], data_info["pressure"],
                          data_info["tir"], data_info["is_rain"], data_info["qcisDelete"],
@@ -134,7 +134,7 @@ def Lv1TXTParse(full_path, mapped_channels, factory, db, filename):
             else:
                 # 存在则更新
                 sql = "UPDATE t_lv1_data SET temperature=%s, humidity=%s, pressure=%s, tir=%s," \
-                      " is_rain=%s, qcisDelete=%s, az=%s, ei=%s, qcisDelete_bt=%s, " \
+                      " is_rain=%s, qcisDelete=%s, az=%s, ei=%s, qcisDelete_bt='%s', " \
                       "brightness_emperature_43channels='%s', isDelete=%s WHERE datetime='%s'" \
                       % (data_info["temperature"], data_info["humidity"],
                          data_info["pressure"], data_info["tir"], data_info["is_rain"],

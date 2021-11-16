@@ -22,9 +22,12 @@ class MySQL:
         print('DB Closed!')
 
     def execute(self, sql):
-        self.cur.execute(sql)
-        self.conn.commit()
-        print(f"执行 {sql}")
+        try:
+            self.cur.execute(sql)
+            self.conn.commit()
+            print(f"执行 {sql}")
+        except pymysql.err.ProgrammingError:
+            print(f"失败，略过当前条")
         return self.cur.fetchone()
 
 

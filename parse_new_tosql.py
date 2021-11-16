@@ -1,3 +1,4 @@
+"""解析新格式文件，使用df.to_sql入库"""
 import json
 import os
 from datetime import datetime
@@ -103,14 +104,23 @@ def Lv1TXTParse(full_path, mapped_channels, factory, db, filename):
     print("执行to_sql")
     df.to_sql('t_lv1_data_temp', con=db.data_conn, if_exists='replace', index=False)
     with db.data_conn.begin() as cn:
-        sql = """INSERT INTO t_lv1_data (id, lv1_file_id, datetime, temperature, humidity, pressure, tir, is_rain, qcisDelete, az, ei, qcisDelete_bt, brightness_emperature_43channels, isDelete)
-                SELECT t.id, t.lv1_file_id, t.datetime, t.temperature, t.humidity, t.pressure, t.tir, t.is_rain, t.qcisDelete, t.az, t.ei, t.qcisDelete_bt, t.brightness_emperature_43channels, t.isDelete
-                FROM t_lv1_data_temp t
-                WHERE NOT EXISTS 
-                    (SELECT 1 FROM t_lv1_data f
-                     WHERE t.lv1_file_id = f.lv1_file_id
-                     AND t.datetime = f.datetime)"""
+        sql = """INSERT INTO t_lv1_data (id, lv1_file_id, datetime, temperature, humidity, pressure, tir, is_rain, 
+                 qcisDelete, az, ei, qcisDelete_bt, brightness_emperature_43channels, isDelete)
+                 SELECT * FROM t_lv1_data_temp t
+                 ON DUPLICATE KEY UPDATE temperature=t.temperature, humidity=t.humidity, pressure=t.pressure, 
+                 tir=t.tir, is_rain=t.is_rain, qcisDelete=t.qcisDelete, az=t.az, ei=t.ei, qcisDelete_bt=t.qcisDelete_bt,
+                 brightness_emperature_43channels=t.brightness_emperature_43channels, isDelete=t.isDelete"""
         cn.execute(sql)
+        print(f"执行{sql}")
+
+        # sql = """UPDATE t_lv1_data f, t_lv1_data_temp t
+        #          SET f.temperature=t.temperature, f.humidity=t.humidity, f.pressure=t.pressure, f.tir=t.tir, f.is_rain=t.is_rain, f.qcisDelete=t.qcisDelete, f.az=t.az, f.ei=t.ei, f.qcisDelete_bt=t.qcisDelete_bt, f.brightness_emperature_43channels=t.brightness_emperature_43channels, f.isDelete=t.isDelete
+        #          WHERE EXISTS
+        #                 (SELECT 1 FROM t_lv1_data f
+        #                  WHERE t.lv1_file_id = f.lv1_file_id
+        #                  AND t.datetime = f.datetime)"""
+        # cn.execute(sql)
+        # print(f"执行{sql}")
 
 
 def main():

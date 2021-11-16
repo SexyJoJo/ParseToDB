@@ -1,3 +1,4 @@
+"""解析新格式文件，使用纯sql语句入库"""
 import json
 import os
 from datetime import datetime
@@ -61,7 +62,6 @@ def lv1file_parse(field, full_path, filename):
         'isDelete': 0
     }
     return file_info
-
 
 def Lv1TXTParse(full_path, mapped_channels, factory, db, filename):
     global cnt

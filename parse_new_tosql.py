@@ -45,7 +45,7 @@ def get_mapped_channels(filename):
         return fields[-3]
 
     mapped_channels = []
-    with open("channel_map.json", "r", encoding='utf-8') as f:
+    with open("config/parse/channel_map.json", "r", encoding='utf-8') as f:
         channel_info = json.load(f)
         factory = get_factory()
 
@@ -58,7 +58,7 @@ def get_mapped_channels(filename):
 
 def lv1file_parse(field, full_path, filename):
     file_info = {
-        'id': uuid.uuid3(uuid.NAMESPACE_DNS, full_path + field[-3]),
+        'id': uuid.uuid3(uuid.NAMESPACE_DNS, field[3] + field[4][:8] + field[-3]),
         'wbfsj_id': int(field[3]),
         'obs_time': field[4],
         'file_path': full_path,
@@ -68,7 +68,7 @@ def lv1file_parse(field, full_path, filename):
     return file_info
 
 
-def Lv1TXTParse(full_path, mapped_channels, factory, db, filename):
+def Lv1TXTParse(full_path, mapped_channels, db, field):
     global cnt
     # txt文件读取
     df = pd.read_csv(full_path, header=2, index_col=0, engine="python", encoding="gbk")
@@ -89,7 +89,7 @@ def Lv1TXTParse(full_path, mapped_channels, factory, db, filename):
     df.drop_duplicates(subset=[Consts.LV1_TXT_TIME])
 
     df["id"] = 0
-    df["lv1_file_id"] = uuid.uuid3(uuid.NAMESPACE_DNS, full_path+factory)
+    df["lv1_file_id"] = uuid.uuid3(uuid.NAMESPACE_DNS, field[3] + field[4][:8] + field[-3])
     df["isDelete"] = 0
     df["brightness_emperature_43channels"] = df[mapped_channels].apply(lambda x: json.dumps(dict(x)), axis=1)
     df = df.rename(columns={"DateTime": "datetime", "SurTem(℃)": "temperature", "SurHum(%)": "humidity",
@@ -113,19 +113,9 @@ def Lv1TXTParse(full_path, mapped_channels, factory, db, filename):
         cn.execute(sql)
         print(f"执行{sql}")
 
-        # sql = """UPDATE t_lv1_data f, t_lv1_data_temp t
-        #          SET f.temperature=t.temperature, f.humidity=t.humidity, f.pressure=t.pressure, f.tir=t.tir, f.is_rain=t.is_rain, f.qcisDelete=t.qcisDelete, f.az=t.az, f.ei=t.ei, f.qcisDelete_bt=t.qcisDelete_bt, f.brightness_emperature_43channels=t.brightness_emperature_43channels, f.isDelete=t.isDelete
-        #          WHERE EXISTS
-        #                 (SELECT 1 FROM t_lv1_data f
-        #                  WHERE t.lv1_file_id = f.lv1_file_id
-        #                  AND t.datetime = f.datetime)"""
-        # cn.execute(sql)
-        # print(f"执行{sql}")
-
-
 def main():
     db = MySQL()
-    with open("new_config.json", 'r', encoding='utf-8') as f:
+    with open("config/parse/new_config.json", 'r', encoding='gbk') as f:
         dir_path = json.load(f)["dir_path"]
 
     for root, _, files in os.walk(dir_path):
@@ -163,7 +153,7 @@ def main():
 
             # 解析文件中的数据
             mapped_channels = get_mapped_channels(filename)
-            Lv1TXTParse(fullpath, mapped_channels, field[-3], db, filename)
+            Lv1TXTParse(fullpath, mapped_channels, db, field)
 
 
 if __name__ == '__main__':

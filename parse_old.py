@@ -35,7 +35,7 @@ class OldParser:
     """旧格式csv解析器"""
     def __init__(self):
         # 读取配置
-        with open("old_config.json", "r", encoding='utf-8') as f:
+        with open("config/parse/old_config.json", "r", encoding='utf-8') as f:
             config = json.load(f)
             self.dir_path = config["dir_path"]
             self.ch_index = (np.array(config["ch_index"]) + 7).tolist()  # 通道索引

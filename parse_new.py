@@ -41,7 +41,7 @@ def get_mapped_channels(filename):
         return fields[-3]
 
     mapped_channels = []
-    with open("channel_map.json", "r", encoding='utf-8') as f:
+    with open("config/parse/channel_map.json", "r", encoding='utf-8') as f:
         channel_info = json.load(f)
         factory = get_factory()
 
@@ -151,7 +151,7 @@ def Lv1TXTParse(full_path, mapped_channels, factory, db, filename):
 
 def main():
     db = MySQL()
-    with open("new_config.json", 'r', encoding='utf-8') as f:
+    with open("config/parse/new_config.json", 'r', encoding='utf-8') as f:
         dir_path = json.load(f)["dir_path"]
 
     for root, _, files in os.walk(dir_path):

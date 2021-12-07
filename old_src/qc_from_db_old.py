@@ -99,7 +99,7 @@ class QualityControl:
         data.loc[result, 'qcisDelete_bt'] =\
             data.loc[result, 'qcisDelete_bt'].apply(modify_flag, index=2, val='1')
 
-        # 当降雨标识为0，且前一个降雨标识为1时，若各通道亮温观测值较前一个时次下降，则将该时次n3标记为1，降水标识为1；
+        # 当降雨标识为0，且前一个降雨标识为1时，若各通道亮温观测值较前一个时次下降，则将该时次n3标记为1，降水标识为1
         for index in data.index:
             # 若n3已经为2或者1，则判断下一行
             if data.loc[index, 'qcisDelete_bt'][2] != '0':

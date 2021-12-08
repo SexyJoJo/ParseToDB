@@ -2,15 +2,23 @@
   "version":1,
 
   "loggers":{
-    "root": {
-      "level": "WARNING",
+    "qc_logger": {
+      "level": "INFO",
       "handlers": [
+        "info_console_handler",
         "error_file_handler"
       ]
     }
   },
 
   "handlers":{
+    "info_console_handler":{
+      "class":"logging.StreamHandler",
+      "level":"INFO",
+      "formatter":"infoFormatter",
+      "stream":"ext://sys.stdout"
+    },
+
     "error_file_handler":{
       "class":"logging.handlers.RotatingFileHandler",
       "level":"ERROR",
@@ -22,11 +30,11 @@
 
   "formatters":{
     "errorFormatter": {
-      "format":"%(asctime)s %(levelname)s %(filename)s line:%(lineno)d %(message)s",
+      "format":"%(asctime)s || %(levelname)s : %(message)s",
       "datefmt":"%Y-%m-%d %H:%M:%S"
     },
     "infoFormatter":{
-      "format":"%(asctime)s %(message)s",
+      "format":"%(asctime)s || %(levelname)s : %(message)s",
       "datefmt":"%Y-%m-%d %H:%M:%S"
     }
   }

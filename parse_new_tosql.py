@@ -88,6 +88,7 @@ def lv1_txt_parse(full_path, db, filename):
     df["id"] = 0
     df["lv1_file_name"] = filename
     df["isDelete"] = 0
+    df["temp_is_rain"] = None
     df["my_flag"] = None
     df["station_id"] = filename.split('_')[3]
     for i in range(len(mapped_channels)):
@@ -99,17 +100,17 @@ def lv1_txt_parse(full_path, db, filename):
     df = df.drop(columns=mapped_channels_withoutCh)
     df = df[
         ["id", "station_id", "lv1_file_name", "datetime", "temperature", "humidity", "pressure", "tir", "is_rain",
-         "QCFlag", "az", "ei", "QCFlag_BT", "brightness_temperature_43channels", "isDelete", "my_flag"]]
+         "QCFlag", "az", "ei", "QCFlag_BT", "brightness_temperature_43channels", "isDelete", "temp_is_rain", "my_flag"]]
     print("执行to_sql")
     df.to_sql('t_lv1_data_temp', con=db.data_conn, if_exists='replace', index=False)
     with db.data_conn.begin() as cn:
         sql = """INSERT INTO t_lv1_data (id, station_id, lv1_file_name, datetime, temperature, humidity, pressure, tir, 
-                 is_rain, QCFlag, az, ei, QCFlag_BT, brightness_temperature_43channels, isDelete, my_flag)
+                 is_rain, QCFlag, az, ei, QCFlag_BT, brightness_temperature_43channels, isDelete, temp_is_rain, my_flag)
                  SELECT * FROM t_lv1_data_temp t
                  ON DUPLICATE KEY UPDATE temperature=t.temperature, humidity=t.humidity, pressure=t.pressure, 
                  tir=t.tir, is_rain=t.is_rain, QCFlag=t.QCFlag, az=t.az, ei=t.ei, QCFlag_BT=t.QCFlag_BT,
                  brightness_temperature_43channels=t.brightness_temperature_43channels, isDelete=t.isDelete,
-                 my_flag=t.my_flag, station_id = t.station_id"""
+                 station_id = t.station_id"""
         cn.execute(sql)
         print(f"执行{sql}")
 

@@ -91,7 +91,7 @@ def quality_control():
         return flag
 
     def get_config():
-        with open("config/quality_control/qc_db_config.json", 'r') as f:
+        with open("../config/quality_control/qc_db_config.json", 'r') as f:
             config = json.load(f)
         return config
 

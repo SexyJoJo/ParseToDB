@@ -14,11 +14,11 @@ global rain_index
 
 
 class Log:
-    def __init__(self):
+    def __init__(self, logger):
         with open(r"config/quality_control/log_config.json", "r") as f:
             log_config = json.load(f)
         logging.config.dictConfig(log_config)
-        self.logger = logging.getLogger("qc_logger")
+        self.logger = logging.getLogger(logger)
 
 
 class Mysql:
@@ -359,7 +359,7 @@ def quality_control(qc_log):
 
 
 def main():
-    qc_log = Log()
+    qc_log = Log("qc_logger")
     try:
         start = datetime.now()
         quality_control(qc_log)

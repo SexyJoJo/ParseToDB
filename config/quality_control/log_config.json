@@ -8,6 +8,14 @@
         "info_console_handler",
         "info_file_handler"
       ]
+    },
+
+    "parse_logger": {
+      "level": "INFO",
+      "handlers": [
+        "info_console_handler",
+        "info_file_handler_parse"
+      ]
     }
   },
 
@@ -24,6 +32,14 @@
       "level":"INFO",
       "formatter":"infoFormatter",
       "filename":"./log/qc/qc.log",
+      "backupCount":20
+    },
+
+    "info_file_handler_parse":{
+      "class":"logging.handlers.RotatingFileHandler",
+      "level":"INFO",
+      "formatter":"infoFormatter",
+      "filename":"./log/fc/fc.log",
       "backupCount":20
     }
   },

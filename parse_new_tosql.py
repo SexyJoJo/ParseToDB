@@ -7,6 +7,7 @@ from sqlalchemy import create_engine
 import Consts
 import pandas as pd
 import re
+from qc_from_db_nochunk import Log
 
 cnt = 0
 
@@ -69,11 +70,9 @@ def get_mapped_channels(filename, db, data):
 #     return file_info
 
 
-def lv1_txt_parse(full_path, db, filename):
+def lv1_txt_parse(full_path, db, filename, parse_logger):
     # txt文件读取
     df = pd.read_csv(full_path, header=2, index_col=0, engine="python", encoding="gbk", dtype={'QCFlag_BT': str})
-    print("-------TXT file: ", full_path)
-    print("行数: ", df.shape[0])
     df = df.dropna(axis=1, how="all")
 
     # 替换统一表头
@@ -101,7 +100,9 @@ def lv1_txt_parse(full_path, db, filename):
     df = df[
         ["id", "station_id", "lv1_file_name", "datetime", "temperature", "humidity", "pressure", "tir", "is_rain",
          "QCFlag", "az", "ei", "QCFlag_BT", "brightness_temperature_43channels", "isDelete", "temp_is_rain", "my_flag"]]
-    print("执行to_sql")
+    parse_logger.logger.info(f"{filename}解析完毕,数据条数：{df.shape[0]}")
+
+    parse_logger.logger.info("正在存入数据库...")
     df.to_sql('t_lv1_data_temp', con=db.data_conn, if_exists='replace', index=False)
     with db.data_conn.begin() as cn:
         sql = """INSERT INTO t_lv1_data (id, station_id, lv1_file_name, datetime, temperature, humidity, pressure, tir, 
@@ -112,16 +113,19 @@ def lv1_txt_parse(full_path, db, filename):
                  brightness_temperature_43channels=t.brightness_temperature_43channels, isDelete=t.isDelete,
                  station_id = t.station_id"""
         cn.execute(sql)
-        print(f"执行{sql}")
+    parse_logger.logger.info("入库完毕")
 
 def main():
+    parse_logger = Log("parse_logger")
     db = MySQL()
+
     with open("config/parse/new_config.json", 'r', encoding='gbk') as f:
         dir_path = json.load(f)["dir_path"]
 
     for root, _, files in os.walk(dir_path):
         # 解析每个文件
         for file in files:
+            parse_logger.logger.info(f"正在解析{file}")
             filename = file
             fullpath = os.path.join(root, file)
 
@@ -129,31 +133,13 @@ def main():
             field = filename.split('_')
             try:
                 if field[5] == 'P' or field[-1][0] == 'M' or field[-1][2:] != 'txt' or field[-2] in ['CAL', 'STA']:
+                    parse_logger.logger.info("文件无效，略过")
                     continue
             except IndexError:
                 continue
 
-            # # 解析文件信息
-            # file_info = lv1file_parse(field, fullpath, filename, dev_id)
-            # sql = "SELECT id FROM t_lv1_file WHERE id = '%s'" % (file_info["id"])
-            # result = db.execute(sql)
-            # if not result:
-            #     sql = "INSERT INTO t_lv1_file(id, wbfsj_id, obs_time, file_path, file_name, isDelete) " \
-            #           "VALUES ('%s', %s, '%s', '%s', '%s' ,%s)" % (file_info["id"],
-            #                                                        file_info["wbfsj_id"],
-            #                                                        file_info["obs_time"],
-            #                                                        file_info["file_path"],
-            #                                                        file_info["file_name"],
-            #                                                        file_info["isDelete"])
-            # else:
-            #     sql = "UPDATE t_lv1_file SET wbfsj_id =%s, obs_time='%s', file_path='%s'," \
-            #           "file_name='%s', isDelete=%s WHERE id ='%s'" % \
-            #           (file_info["wbfsj_id"], file_info["obs_time"], file_info["file_path"],
-            #            file_info["file_name"], file_info["isDelete"], file_info["id"])
-            # db.execute(sql)
-
             # 解析文件中的数据
-            lv1_txt_parse(fullpath, db, filename)
+            lv1_txt_parse(fullpath, db, filename, parse_logger)
 
 
 if __name__ == '__main__':

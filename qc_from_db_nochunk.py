@@ -42,11 +42,6 @@ class Mysql:
 
     def get_rollback_data(self, station_id, latest_time):
         """查询最后3个小时质控过的数据用于回溯"""
-        # sql = f"SELECT datetime FROM t_lv1_data " \
-        #       f"WHERE station_id={station_id} AND my_flag IS NOT NULL " \
-        #       f"ORDER BY datetime DESC limit 1"
-        # result = self.conn.execute(sql).fetchone()
-        # if result:
         sql = f"SELECT station_id, datetime, brightness_temperature_43channels, temp_is_rain, my_flag " \
               f"FROM t_lv1_data " \
               f"WHERE station_id={station_id} AND my_flag IS NOT NULL " \
@@ -54,8 +49,6 @@ class Mysql:
               f"ORDER BY datetime"
         rollback_data = pd.read_sql(sql, self.conn)
         rollback_data = rollback_data.rename(columns={"temp_is_rain": "is_rain"})
-        # else:
-        #     rollback_data = pd.DataFrame()
         return rollback_data
 
     def get_channel_map(self, station_id):
@@ -71,7 +64,7 @@ class Mysql:
             self.conn.execute(sql)
 
 
-def quality_control():
+def quality_control(qc_log):
     """质控"""
     def spread_df(data):
         """将brightness_temperature_43channels列展开为dataframe，与原表拼接"""
@@ -291,7 +284,7 @@ def quality_control():
 
     # 入口
     db = Mysql()
-    qc_log = Log()
+
     qc_log.logger.info("程序开始运行...")
 
     # 读取站台号列表
@@ -325,45 +318,58 @@ def quality_control():
         # 提取通道数据
         ch_data = merged_data[get_channels(merged_data.columns)]
 
-        qc_log.logger.info(f"开始质控，待质控数据：{len(merged_data)}条")
-        # 质控n1
-        qc_log.logger.info("正在进行逻辑检查（n1）...")
-        check_n1()
-        qc_log.logger.info("逻辑检查完毕")
+        try:
+            qc_log.logger.info(f"开始质控，待质控数据：{len(merged_data)}条")
+            # 质控n1
+            qc_log.logger.info("正在进行逻辑检查（n1）...")
+            check_n1()
+            qc_log.logger.info("逻辑检查完毕")
 
-        # 质控n2
-        qc_log.logger.info("正在进行最小变率检查（n2）...")
-        check_n2()
-        qc_log.logger.info("最小变率检查完毕")
+            # 质控n2
+            qc_log.logger.info("正在进行最小变率检查（n2）...")
+            check_n2()
+            qc_log.logger.info("最小变率检查完毕")
 
-        # 质控n3
-        qc_log.logger.info("正在进行降水变率检查（n3）...")
-        check_n3()
-        qc_log.logger.info("降水检查完毕")
+            # 质控n3
+            qc_log.logger.info("正在进行降水变率检查（n3）...")
+            check_n3()
+            qc_log.logger.info("降水检查完毕")
 
-        # 质控n4
-        qc_log.logger.info("正在进行一致性判别检查（n4）...")
-        check_n4()
-        qc_log.logger.info("一致性判别检查完毕")
+            # 质控n4
+            qc_log.logger.info("正在进行一致性判别检查（n4）...")
+            check_n4()
+            qc_log.logger.info("一致性判别检查完毕")
 
-        # 质控n5
-        qc_log.logger.info("正在进行极值检查（n5）...")
-        check_n5()
-        qc_log.logger.info("极值检查完毕")
-        qc_log.logger.info("质控完毕")
+            # 质控n5
+            qc_log.logger.info("正在进行极值检查（n5）...")
+            check_n5()
+            qc_log.logger.info("极值检查完毕")
+            qc_log.logger.info("质控完毕")
+        except Exception:
+            qc_log.logger.error("质控错误")
+            sys.exit()
 
-        qc_log.logger.info("正在向数据库中更新质控码...            ")
-        db.update_flag(merged_data[["station_id", "datetime", "is_rain", "my_flag"]])
-        qc_log.logger.info(f"'{station_id}'站台质控码更新完毕\n")
+        try:
+            qc_log.logger.info("正在向数据库中更新质控码...            ")
+            db.update_flag(merged_data[["station_id", "datetime", "is_rain", "my_flag"]])
+            qc_log.logger.info(f"'{station_id}'站台质控码更新完毕\n")
+        except Exception:
+            qc_log.logger.error("质控码更新错误")
+            sys.exit()
 
 
 def main():
-    start = datetime.now()
-    quality_control()
-    end = datetime.now()
-    print(f"开始时间：{start}")
-    print(f"结束时间：{end}")
-    print(f"运行时间:{end - start}")
+    qc_log = Log()
+    try:
+        start = datetime.now()
+        quality_control(qc_log)
+        end = datetime.now()
+        print(f"开始时间：{start}")
+        print(f"结束时间：{end}")
+        print(f"运行时间:{end - start}")
+    except Exception:
+        qc_log.logger.error("程序异常")
+        sys.exit()
 
 
 if __name__ == '__main__':

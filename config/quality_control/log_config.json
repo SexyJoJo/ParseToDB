@@ -6,7 +6,7 @@
       "level": "INFO",
       "handlers": [
         "info_console_handler",
-        "error_file_handler"
+        "info_file_handler"
       ]
     }
   },
@@ -19,10 +19,10 @@
       "stream":"ext://sys.stdout"
     },
 
-    "error_file_handler":{
+    "info_file_handler":{
       "class":"logging.handlers.RotatingFileHandler",
-      "level":"ERROR",
-      "formatter":"errorFormatter",
+      "level":"INFO",
+      "formatter":"infoFormatter",
       "filename":"./log/qc/qc.log",
       "backupCount":20
     }

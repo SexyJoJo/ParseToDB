@@ -29,7 +29,6 @@ class MySQL:
     def execute(self, sql):
         self.cur.execute(sql)
         self.conn.commit()
-        print(f"执行 {sql}")
         return self.cur.fetchone()
 
 
@@ -125,7 +124,6 @@ def main():
     for root, _, files in os.walk(dir_path):
         # 解析每个文件
         for file in files:
-            parse_logger.logger.info(f"正在解析{file}")
             filename = file
             fullpath = os.path.join(root, file)
 
@@ -133,13 +131,16 @@ def main():
             field = filename.split('_')
             try:
                 if field[5] == 'P' or field[-1][0] == 'M' or field[-1][2:] != 'txt' or field[-2] in ['CAL', 'STA']:
-                    parse_logger.logger.info("文件无效，略过")
                     continue
             except IndexError:
                 continue
 
             # 解析文件中的数据
-            lv1_txt_parse(fullpath, db, filename, parse_logger)
+            parse_logger.logger.info(f"正在解析{file}...")
+            try:
+                lv1_txt_parse(fullpath, db, filename, parse_logger)
+            except Exception:
+                parse_logger.logger.error("解析入库失败")
 
 
 if __name__ == '__main__':

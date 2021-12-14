@@ -32,7 +32,7 @@ class Mysql:
         station_ids = [x[0] for x in station_ids]
         return station_ids
 
-    def get_data(self, station_id):
+    def get_noqc_data(self, station_id):
         """根据设备号查询未质控的数据，分块读取需要用于质控的数据"""
         sql = f"SELECT station_id, datetime, is_rain, brightness_temperature_43channels, my_flag FROM t_lv1_data " \
               f"WHERE station_id={station_id} AND my_flag IS NULL " \
@@ -40,12 +40,12 @@ class Mysql:
         data = pd.read_sql(sql, self.conn)
         return data
 
-    def get_rollback_data(self, station_id, latest_time):
+    def get_rollback_data(self, station_id, first_noqc_time):
         """查询最后3个小时质控过的数据用于回溯"""
         sql = f"SELECT station_id, datetime, brightness_temperature_43channels, temp_is_rain, my_flag " \
               f"FROM t_lv1_data " \
               f"WHERE station_id={station_id} AND my_flag IS NOT NULL " \
-              f"AND datetime between '{latest_time-timedelta(hours=3)}' and '{latest_time}' " \
+              f"AND datetime between '{first_noqc_time - timedelta(hours=3)}' and '{first_noqc_time}' " \
               f"ORDER BY datetime"
         rollback_data = pd.read_sql(sql, self.conn)
         rollback_data = rollback_data.rename(columns={"temp_is_rain": "is_rain"})
@@ -300,7 +300,7 @@ def quality_control(qc_log):
     # 对每个站台进行处理
     for station_id in station_ids:
         qc_log.logger.info(f"正在读取'{station_id}'站台数据")
-        df = db.get_data(station_id)
+        df = db.get_noqc_data(station_id)
         if df.empty:
             qc_log.logger.info(f"'{station_id}'站台无待质控数据\n")
             continue
@@ -367,8 +367,8 @@ def main():
         print(f"开始时间：{start}")
         print(f"结束时间：{end}")
         print(f"运行时间:{end - start}")
-    except Exception:
-        qc_log.logger.error("程序异常")
+    except Exception as e:
+        qc_log.logger.error(f"程序异常,{e}")
         sys.exit()
 
 

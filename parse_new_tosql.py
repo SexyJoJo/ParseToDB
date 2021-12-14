@@ -1,6 +1,7 @@
 """解析新格式文件，使用df.to_sql入库"""
 import json
 import os
+import sys
 from datetime import datetime
 import pymysql
 from sqlalchemy import create_engine
@@ -22,9 +23,12 @@ class MySQL:
         self.data_conn = create_engine('mysql+pymysql://root:123@localhost/microwave?charset=utf8')
 
     def __del__(self):
-        self.cur.close()
-        self.conn.close()
-        print('DB Closed!')
+        try:
+            self.cur.close()
+            self.conn.close()
+            print('DB Closed!')
+        except AttributeError:
+            pass
 
     def execute(self, sql):
         self.cur.execute(sql)
@@ -87,6 +91,7 @@ def lv1_txt_parse(full_path, db, filename, parse_logger):
     df["lv1_file_name"] = filename
     df["isDelete"] = 0
     df["temp_is_rain"] = None
+    df["is_qced"] = 0
     df["my_flag"] = None
     df["station_id"] = filename.split('_')[3]
     for i in range(len(mapped_channels)):
@@ -98,25 +103,31 @@ def lv1_txt_parse(full_path, db, filename, parse_logger):
     df = df.drop(columns=mapped_channels_withoutCh)
     df = df[
         ["id", "station_id", "lv1_file_name", "datetime", "temperature", "humidity", "pressure", "tir", "is_rain",
-         "QCFlag", "az", "ei", "QCFlag_BT", "brightness_temperature_43channels", "isDelete", "temp_is_rain", "my_flag"]]
+         "QCFlag", "az", "ei", "QCFlag_BT", "brightness_temperature_43channels", "isDelete", "temp_is_rain",
+         "is_qced", "my_flag"]]
     parse_logger.logger.info(f"{filename}解析完毕,数据条数：{df.shape[0]}")
 
     parse_logger.logger.info("正在存入数据库...")
     df.to_sql('t_lv1_data_temp', con=db.data_conn, if_exists='replace', index=False)
     with db.data_conn.begin() as cn:
         sql = """INSERT INTO t_lv1_data (id, station_id, lv1_file_name, datetime, temperature, humidity, pressure, tir, 
-                 is_rain, QCFlag, az, ei, QCFlag_BT, brightness_temperature_43channels, isDelete, temp_is_rain, my_flag)
+                 is_rain, QCFlag, az, ei, QCFlag_BT, brightness_temperature_43channels, isDelete, temp_is_rain, 
+                 is_qced, my_flag)
                  SELECT * FROM t_lv1_data_temp t
                  ON DUPLICATE KEY UPDATE temperature=t.temperature, humidity=t.humidity, pressure=t.pressure, 
                  tir=t.tir, is_rain=t.is_rain, QCFlag=t.QCFlag, az=t.az, ei=t.ei, QCFlag_BT=t.QCFlag_BT,
                  brightness_temperature_43channels=t.brightness_temperature_43channels, isDelete=t.isDelete,
-                 station_id = t.station_id"""
+                 station_id=t.station_id, is_qced=t.is_qced"""
         cn.execute(sql)
     parse_logger.logger.info("入库完毕")
 
 def main():
     parse_logger = Log("parse_logger")
-    db = MySQL()
+    try:
+        db = MySQL()
+    except pymysql.err.OperationalError:
+        parse_logger.logger.error("数据库未连接")
+        sys.exit()
 
     with open("config/parse/new_config.json", 'r', encoding='gbk') as f:
         dir_path = json.load(f)["dir_path"]

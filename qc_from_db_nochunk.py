@@ -32,17 +32,21 @@ class Mysql:
         station_ids = [x[0] for x in station_ids]
         return station_ids
 
-    def get_noqc_data(self, station_id):
-        """根据设备号查询未质控的数据，分块读取需要用于质控的数据"""
-        sql = f"SELECT station_id, datetime, is_rain, brightness_temperature_43channels, my_flag FROM t_lv1_data " \
-              f"WHERE station_id={station_id} AND my_flag IS NULL " \
+    def get_data_by_year(self, station_id, crr_year):
+        """根据设备号和年份查询的数据，分块读取需要用于质控的数据"""
+        crr_datetime = datetime(crr_year, 1, 1)
+        end_time = datetime(crr_year, 12, 31)
+
+        sql = f"SELECT station_id, datetime, is_rain, brightness_temperature_43channels, is_qced, my_flag " \
+              f"FROM t_lv1_data " \
+              f"WHERE station_id={station_id} AND datetime between '{crr_datetime}' and '{end_time}' " \
               f"ORDER BY datetime"
         data = pd.read_sql(sql, self.conn)
         return data
 
     def get_rollback_data(self, station_id, first_noqc_time):
         """查询最后3个小时质控过的数据用于回溯"""
-        sql = f"SELECT station_id, datetime, brightness_temperature_43channels, temp_is_rain, my_flag " \
+        sql = f"SELECT station_id, datetime, brightness_temperature_43channels, temp_is_rain, is_qced,my_flag " \
               f"FROM t_lv1_data " \
               f"WHERE station_id={station_id} AND my_flag IS NOT NULL " \
               f"AND datetime between '{first_noqc_time - timedelta(hours=3)}' and '{first_noqc_time}' " \
@@ -59,7 +63,8 @@ class Mysql:
     def update_flag(self, df):
         """更新数据库中的降水标识和质控码"""
         for index, row in df.iterrows():
-            sql = f"""UPDATE t_lv1_data SET temp_is_rain = {row["is_rain"]}, my_flag='{row["my_flag"]}'
+            sql = f"""UPDATE t_lv1_data 
+                      SET temp_is_rain = {row["is_rain"]}, is_qced={row["is_qced"]}, my_flag='{row["my_flag"]}'
                       WHERE station_id='{row["station_id"]}' AND datetime='{row["datetime"]}'"""
             self.conn.execute(sql)
 
@@ -132,7 +137,7 @@ def quality_control(qc_log):
                 if index == 0:
                     continue
                 # 检查n2是否经过前面通道的更改已经变为2，如果已经为2则检查下一行
-                if merged_data.loc[index, 'my_flag'][1] == '2':
+                if merged_data.loc[index, 'my_flag'][1] == '2' or merged_data.loc[index, 'is_qced'] == 1:
                     continue
                 # 统计重复个数
                 cnt = 1
@@ -176,8 +181,8 @@ def quality_control(qc_log):
                 if index == 0:
                     continue
 
-                # 若n3已经为2或者1，则判断下一行
-                if merged_data.loc[index, 'my_flag'][2] != '0':
+                # 若n3已经为2或者1，或者已质控过，则判断下一行
+                if merged_data.loc[index, 'my_flag'][2] != '0' or merged_data.loc[index, 'is_qced'] == 1:
                     continue
 
                 # 中间出现时间空隙（大于2min），跳过
@@ -228,6 +233,10 @@ def quality_control(qc_log):
         for index in range(len(rollback_df), len(merged_data.index)):
             # 若无回溯数据，跳过第一行
             if index == 0:
+                continue
+
+            # 若该行已经过质控，跳过该行
+            if merged_data.loc[index, 'is_qced'] == 1:
                 continue
 
             # 中间出现时间空隙（大于2min），跳过
@@ -299,63 +308,74 @@ def quality_control(qc_log):
 
     # 对每个站台进行处理
     for station_id in station_ids:
-        qc_log.logger.info(f"正在读取'{station_id}'站台数据")
-        df = db.get_noqc_data(station_id)
-        if df.empty:
-            qc_log.logger.info(f"'{station_id}'站台无待质控数据\n")
-            continue
+        crr_year = 2016
+        while crr_year <= datetime.now().year:
+            qc_log.logger.info(f"正在读取'{station_id}'站台{crr_year}年的数据")
+            df = db.get_data_by_year(station_id, crr_year)
+            if df.empty:
+                qc_log.logger.info(f"'{station_id}'站台{crr_year}年 无待质控数据\n")
+                crr_year += 1
+                continue
 
-        rollback_df = db.get_rollback_data(station_id, df.loc[0, 'datetime'])
-        if not rollback_df.empty:
-            rollback_df = spread_df(rollback_df)
-        else:
-            del rollback_df["brightness_temperature_43channels"]
+            rollback_df = db.get_rollback_data(station_id, df.loc[0, 'datetime'])
+            if not rollback_df.empty:
+                rollback_df = spread_df(rollback_df)
+            else:
+                del rollback_df["brightness_temperature_43channels"]
 
-        # 拼接df和用于回溯的数据
-        df = spread_df(df)
-        merged_data = pd.concat([rollback_df, df], axis=0, ignore_index=True)
-        merged_data['my_flag'] = '00000'
-        # 提取通道数据
-        ch_data = merged_data[get_channels(merged_data.columns)]
+            # 拼接df和用于回溯的数据
+            df = spread_df(df)
+            merged_data = pd.concat([rollback_df, df], axis=0, ignore_index=True)
+            merged_data['my_flag'] = '00000'
+            # 提取通道数据
+            ch_data = merged_data[get_channels(merged_data.columns)]
 
-        try:
-            qc_log.logger.info(f"开始质控，待质控数据：{len(merged_data)}条")
-            # 质控n1
-            qc_log.logger.info("正在进行逻辑检查（n1）...")
-            check_n1()
-            qc_log.logger.info("逻辑检查完毕")
+            try:
+                if 0 in merged_data["is_qced"].values:
+                    qc_log.logger.info(f"开始质控，待质控数据：{len(merged_data)}条")
+                    # 质控n1
+                    qc_log.logger.info("正在进行逻辑检查（n1）...")
+                    check_n1()
+                    qc_log.logger.info("逻辑检查完毕")
 
-            # 质控n2
-            qc_log.logger.info("正在进行最小变率检查（n2）...")
-            check_n2()
-            qc_log.logger.info("最小变率检查完毕")
+                    # 质控n2
+                    qc_log.logger.info("正在进行最小变率检查（n2）...")
+                    check_n2()
+                    qc_log.logger.info("最小变率检查完毕")
 
-            # 质控n3
-            qc_log.logger.info("正在进行降水变率检查（n3）...")
-            check_n3()
-            qc_log.logger.info("降水检查完毕")
+                    # 质控n3
+                    qc_log.logger.info("正在进行降水变率检查（n3）...")
+                    check_n3()
+                    qc_log.logger.info("降水检查完毕")
 
-            # 质控n4
-            qc_log.logger.info("正在进行一致性判别检查（n4）...")
-            check_n4()
-            qc_log.logger.info("一致性判别检查完毕")
+                    # 质控n4
+                    qc_log.logger.info("正在进行一致性判别检查（n4）...")
+                    check_n4()
+                    qc_log.logger.info("一致性判别检查完毕")
 
-            # 质控n5
-            qc_log.logger.info("正在进行极值检查（n5）...")
-            check_n5()
-            qc_log.logger.info("极值检查完毕")
-            qc_log.logger.info("质控完毕")
-        except Exception:
-            qc_log.logger.error("质控错误")
-            sys.exit()
+                    # 质控n5
+                    qc_log.logger.info("正在进行极值检查（n5）...")
+                    check_n5()
+                    qc_log.logger.info("极值检查完毕")
 
-        try:
-            qc_log.logger.info("正在向数据库中更新质控码...            ")
-            db.update_flag(merged_data[["station_id", "datetime", "is_rain", "my_flag"]])
-            qc_log.logger.info(f"'{station_id}'站台质控码更新完毕\n")
-        except Exception:
-            qc_log.logger.error("质控码更新错误")
-            sys.exit()
+                    qc_log.logger.info("质控完毕")
+                    merged_data.loc[:, 'is_qced'] = 1
+                else:
+                    qc_log.logger.info(f"'{station_id}'站台{crr_year}年 无待质控数据\n")
+                    crr_year += 1
+                    continue
+            except Exception as e:
+                qc_log.logger.error("质控错误", e)
+                sys.exit()
+
+            try:
+                qc_log.logger.info("正在向数据库中更新质控码...            ")
+                db.update_flag(merged_data[["station_id", "datetime", "is_rain", "is_qced", "my_flag"]])
+                qc_log.logger.info(f"'{station_id}'站台{crr_year}年质控码更新完毕\n")
+            except Exception:
+                qc_log.logger.error("质控码更新错误")
+                sys.exit()
+            crr_year += 1
 
 
 def main():
@@ -368,7 +388,7 @@ def main():
         print(f"结束时间：{end}")
         print(f"运行时间:{end - start}")
     except Exception as e:
-        qc_log.logger.error(f"程序异常,{e}")
+        qc_log.logger.error(f"程序异常", e)
         sys.exit()
 
 

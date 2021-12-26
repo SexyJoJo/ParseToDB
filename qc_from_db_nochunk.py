@@ -32,6 +32,15 @@ class Mysql:
         station_ids = [x[0] for x in station_ids]
         return station_ids
 
+    def get_noqc_time(self, station_id):
+        """查询未质控数据的最早年份"""
+        sql = f"SELECT datetime FROM t_lv1_data " \
+              f"WHERE station_id={station_id} AND is_qced=0 " \
+              f"ORDER BY datetime LIMIT 1"
+        earliest_time = self.conn.execute(sql).fetchone()[0]
+        earliest_year = int(earliest_time.strftime("%Y-%m-%d %H:%M:%S")[0:4])
+        return earliest_year
+
     def get_data_by_year(self, station_id, crr_year):
         """根据设备号和年份查询的数据，分块读取需要用于质控的数据"""
         crr_datetime = datetime(crr_year, 1, 1)
@@ -308,7 +317,7 @@ def quality_control(qc_log):
 
     # 对每个站台进行处理
     for station_id in station_ids:
-        crr_year = 2016
+        crr_year = db.get_noqc_time(station_id)
         while crr_year <= datetime.now().year:
             qc_log.logger.info(f"正在读取'{station_id}'站台{crr_year}年的数据")
             df = db.get_data_by_year(station_id, crr_year)

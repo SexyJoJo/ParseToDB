@@ -8,9 +8,7 @@ from sqlalchemy import create_engine
 import Consts
 import pandas as pd
 import re
-from qc_from_db_nochunk import Log
-
-cnt = 0
+from qc_from_db import Log
 
 
 class MySQL:
@@ -106,7 +104,6 @@ def lv1_txt_parse(full_path, db, filename, parse_logger):
          "QCFlag", "az", "ei", "QCFlag_BT", "brightness_temperature_43channels", "isDelete", "temp_is_rain",
          "is_qced", "my_flag"]]
     parse_logger.logger.info(f"{filename}解析完毕,数据条数：{df.shape[0]}")
-
     parse_logger.logger.info("正在存入数据库...")
     df.to_sql('t_lv1_data_temp', con=db.data_conn, if_exists='replace', index=False)
     with db.data_conn.begin() as cn:
@@ -162,4 +159,3 @@ if __name__ == '__main__':
     print(f"开始时间：{start}")
     print(f"结束时间：{end}")
     print(f"运行时间:{end - start}")
-    print(cnt)

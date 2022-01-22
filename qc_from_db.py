@@ -37,14 +37,18 @@ class Mysql:
         sql = f"SELECT datetime FROM t_lv1_data " \
               f"WHERE station_id={station_id} AND is_qced=0 " \
               f"ORDER BY datetime LIMIT 1"
-        earliest_time = self.conn.execute(sql).fetchone()[0]
-        earliest_year = int(earliest_time.strftime("%Y-%m-%d %H:%M:%S")[0:4])
-        return earliest_year
+        result = self.conn.execute(sql).fetchone()
+        if result:
+            earliest_time = self.conn.execute(sql).fetchone()[0]
+            earliest_year = int(earliest_time.strftime("%Y-%m-%d %H:%M:%S")[0:4])
+            return earliest_year
+        else:
+            return None
 
     def get_data_by_year(self, station_id, crr_year):
         """根据设备号和年份查询的数据，分块读取需要用于质控的数据"""
         crr_datetime = datetime(crr_year, 1, 1)
-        end_time = datetime(crr_year, 12, 31)
+        end_time = datetime(crr_year + 1, 1, 1)
 
         sql = f"SELECT station_id, datetime, is_rain, brightness_temperature_43channels, is_qced, my_flag " \
               f"FROM t_lv1_data " \
@@ -76,6 +80,11 @@ class Mysql:
                       SET temp_is_rain = {row["is_rain"]}, is_qced={row["is_qced"]}, my_flag='{row["my_flag"]}'
                       WHERE station_id='{row["station_id"]}' AND datetime='{row["datetime"]}'"""
             self.conn.execute(sql)
+
+    def get_statistic_info(self, station_id):
+        sql = f"SELECT datetime, my_flag FROM t_lv1_data WHERE station_id={station_id}"
+        statistic_info = pd.read_sql(sql, self.conn)
+        return statistic_info
 
 
 def quality_control(qc_log):
@@ -318,6 +327,9 @@ def quality_control(qc_log):
     # 对每个站台进行处理
     for station_id in station_ids:
         crr_year = db.get_noqc_time(station_id)
+        if not crr_year:
+            qc_log.logger.info(f"{station_id}站台无待质控数据")
+            continue
         while crr_year <= datetime.now().year:
             qc_log.logger.info(f"正在读取'{station_id}'站台{crr_year}年的数据")
             df = db.get_data_by_year(station_id, crr_year)

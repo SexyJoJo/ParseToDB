@@ -1,4 +1,7 @@
-"""解析新格式文件，使用df.to_sql入库"""
+"""
+解析新格式文件，使用df.to_sql入库
+在config/parse/path.json中配置需要解析的目录
+"""
 import json
 import os
 import sys
@@ -73,7 +76,10 @@ def get_mapped_channels(filename, db, data):
 
 def lv1_txt_parse(full_path, db, filename, parse_logger):
     # txt文件读取
-    df = pd.read_csv(full_path, header=2, index_col=0, engine="python", encoding="gbk", dtype={'QCFlag_BT': str})
+    try:
+        df = pd.read_csv(full_path, header=2, index_col=0, engine="python", encoding="utf8", dtype={'QCFlag_BT': str})
+    except Exception:
+        df = pd.read_csv(full_path, header=2, index_col=0, engine="python", encoding="gbk", dtype={'QCFlag_BT': str})
     df = df.dropna(axis=1, how="all")
 
     # 替换统一表头
@@ -126,7 +132,7 @@ def main():
         parse_logger.logger.error("数据库未连接")
         sys.exit()
 
-    with open("config/parse/new_config.json", 'r', encoding='gbk') as f:
+    with open("config/parse/path.json", 'r', encoding='gbk') as f:
         dir_path = json.load(f)["dir_path"]
 
     for root, _, files in os.walk(dir_path):
@@ -147,8 +153,8 @@ def main():
             parse_logger.logger.info(f"正在解析{file}...")
             try:
                 lv1_txt_parse(fullpath, db, filename, parse_logger)
-            except Exception:
-                parse_logger.logger.error("解析入库失败")
+            except Exception as e:
+                parse_logger.logger.error(f"解析入库失败,{e}")
 
 
 if __name__ == '__main__':

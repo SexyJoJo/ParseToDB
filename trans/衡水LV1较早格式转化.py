@@ -2,7 +2,29 @@
 import pandas as pd
 import os
 
-PATH = r"D:\Data\microwave radiometer\Measured brightness temperature\皇寺微波辐射计\Data"
+PATH = r"D:\Data\microwave radiometer\Measured brightness temperature\衡水微波辐射计\data较早格式"
+CHS = ['Ch 22.235',
+       'Ch 22.500',
+       'Ch 23.035',
+       'Ch 23.835',
+       'Ch 25.000',
+       'Ch 26.235',
+       'Ch 28.000',
+       'Ch 30.000',
+       'Ch 51.250',
+       'Ch 51.760',
+       'Ch 52.280',
+       'Ch 52.800',
+       'Ch 53.340',
+       'Ch 53.850',
+       'Ch 54.400',
+       'Ch 54.940',
+       'Ch 55.500',
+       'Ch 56.020',
+       'Ch 56.660',
+       'Ch 57.290',
+       'Ch 57.960',
+       'Ch 58.800']
 
 def split_file(path, filename):
     """
@@ -12,7 +34,14 @@ def split_file(path, filename):
     if not os.path.exists(r'./temp'):
         os.makedirs(r'./temp')
 
-    with open(os.path.join(path, filename), 'r', encoding='gbk') as f:
+    # 去除原始文件空行，写入临时文件
+    with open(os.path.join(path, filename), 'r', encoding='gbk') as origin:
+        with open(r'./temp/temp_file.csv', 'w', encoding='gbk') as temp:
+            for text in origin.readlines():
+                if text.split():
+                    temp.write(text)
+
+    with open(r'./temp/temp_file.csv', 'r', encoding='gbk') as f:
         line_cnt = len(f.readlines())
         f.seek(0, 0)
         for i in range(int(line_cnt/2)):  # 获取文件行数的一半
@@ -20,11 +49,15 @@ def split_file(path, filename):
             # 一行写入临时温湿压
             with open(r'./temp/thp.csv', 'a+', encoding='gbk') as thp:
                 line = f.readline()
+                while line == '\n':
+                    line = f.readline()
                 thp.write(line)
 
             # 一行写入亮温
             with open(r'./temp/bt.csv', 'a+', encoding='gbk') as bt:
                 line = f.readline()
+                while line == '\n':
+                    line = f.readline()
                 bt.write(line)
 
     thp_df = pd.read_csv(r'./temp/thp.csv', dtype=str)
@@ -62,7 +95,7 @@ if __name__ == '__main__':
                 except FileNotFoundError:
                     print(f"文件{file}为空，跳过")
                     continue
-                df = df.drop(['20', 'WindS', 'WindD', 'RainFall/M', 'RainFall/H', 'Record_y', '10', 'RainFall'], axis=1)
+                df = df.drop(['21', 'Record_y', '11'], axis=1)
                 df.rename(columns={'Record_x': 'Record',
                                    'Date/Time': 'DateTime',
                                    'Tamb(C)': 'SurTem(℃)',
@@ -70,26 +103,35 @@ if __name__ == '__main__':
                                    ' Pres(hPa)': 'SurPre(hPa)',
                                    ' Tir(C)': 'Tir(℃)',
                                    ' Rain': 'Rain'}, inplace=True)
-                # 替换列名
-                columns = []
-                for column in df.columns:
-                    if column.startswith('Tsky'):
-                        columns.append(f'Ch {column[4:]}')
-                    else:
-                        columns.append(column)
-                df.columns = columns
+                # # 替换列名
+                # columns = []
+                # for column in df.columns:
+                #     if column.startswith('Tsky'):
+                #         columns.append(f'Ch {column[4:]}')
+                #     else:
+                #         columns.append(column)
+                # df.columns = columns
 
                 # 添加不存在的列
                 df.insert(7, 'QCFlag', 0)
                 df.insert(8, 'Az(deg)', 0)
                 df.insert(9, 'El(deg)', 0)
+
+                # 替换列名
+                columns = []
+                for column in df.columns:
+                    if not column.startswith('Tsky'):
+                        columns.append(column)
+                columns = columns + CHS
+                df.columns = columns
+
                 df['QCFlag_BT'] = '00000'
 
                 ymd, ymd_hms = get_time(file)
                 # 保存文件
-                if not os.path.exists(rf'D:\Data\microwave radiometer\Measured brightness temperature\11111皇寺\{ymd}'):
-                    os.makedirs(rf'D:\Data\microwave radiometer\Measured brightness temperature\11111皇寺\{ymd}')
-                save_path = rf'D:\Data\microwave radiometer\Measured brightness temperature\11111皇寺\{ymd}\Z_UPAR_I_11111_{ymd_hms}_O_YMWR_FACTORY_RAW_D.txt'
+                if not os.path.exists(rf'D:\Data\microwave radiometer\Measured brightness temperature\54702衡水\{ymd}'):
+                    os.makedirs(rf'D:\Data\microwave radiometer\Measured brightness temperature\54702衡水\{ymd}')
+                save_path = rf'D:\Data\microwave radiometer\Measured brightness temperature\54702衡水\{ymd}\Z_UPAR_I_54702_{ymd_hms}_O_YMWR_BFTQ_RAW_D.txt'
                 df.to_csv(save_path, sep=',', index=False)
 
                 # 写入文件头
@@ -97,8 +139,8 @@ if __name__ == '__main__':
                     old = f.read()
                     f.seek(0, 0)
                     f.write('MWR,01.00\n')
-                    f.write(f'11111,999.9999,99.9999,99.9,factory,99,99\n')
+                    f.write(f'54702,115.7111,37.7169,35.7,BFTQ,22,83\n')
                     f.write(old)
 
                 print(f"{file} 转换成功")
-                # break
+
